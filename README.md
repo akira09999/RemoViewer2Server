@@ -14,9 +14,17 @@ The Android client app is separate and not publicly available.
 
 ## Installation
 
-Download the latest installer from the [Releases](../../releases/latest) page.
+아래 Releases 페이지에서 최신 서버 설치 파일을 받습니다.  
+👉 https://github.com/akira09999/RemoViewer2Server/releases/latest
 
-> The installer is provided so users can verify what they are installing. You do not need to build from source to use RemoViewer2 Server.
+설치 파일을 실행하면 Windows 보안 경고가 나타날 수 있습니다.  
+이는 이 프로그램에 코드 서명(유료 인증서)이 없기 때문이며,  
+바이러스나 악성 프로그램이라는 의미가 아닙니다.  
+경고 화면에서 **[추가 정보]** 를 누른 뒤 **[실행]** 을 누르면 설치가 진행됩니다.
+
+이 서버의 소스 코드는 전부 이 저장소에 공개되어 있습니다.  
+설치 파일이 미덥지 않다면 코드를 직접 확인하시거나, 직접 빌드해 사용하셔도 됩니다.  
+공식 설치 파일은 오직 이 저장소의 Releases 페이지에서만 배포됩니다.
 
 ## Building from Source
 
