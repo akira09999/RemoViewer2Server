@@ -1,0 +1,29 @@
+{
+  "appId": "com.removiewer2.server",
+  "productName": "RemoViewer2Server",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "src/**/*",
+    "assets/**/*"
+  ],
+  "asarUnpack": [
+    "**/*.node",
+    "**/node_modules/sharp/**",
+    "**/node_modules/@img/**"
+  ],
+  "win": {
+    "target": "nsis",
+    "icon": "assets/icon.ico"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "installerIcon": "assets/icon.ico",
+    "uninstallerIcon": "assets/icon.ico"
+  },
+  "npmRebuild": true,
+  "electronLanguages": ["ko", "en-US"],
+  "afterPack": "./afterPack.js"
+}

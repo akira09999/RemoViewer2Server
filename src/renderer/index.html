@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RemoViewer2 Server</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #181818;
+      color: #e0e0e0;
+      padding: 14px;
+      user-select: none;
+      overflow: hidden;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: #222222;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #444444;
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    .status-dot.running { background: #5ab05a; }
+
+    .status-text { font-size: 14px; color: #cccccc; flex: 1; }
+    .client-count { font-size: 13px; color: #666666; }
+
+    .section {
+      background: #222222;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #666666;
+      margin-bottom: 8px;
+    }
+
+    .field { margin-bottom: 8px; }
+    .field:last-child { margin-bottom: 0; }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: #888888;
+      margin-bottom: 4px;
+    }
+
+    input[type="text"],
+    input[type="number"] {
+      width: 100%;
+      background: #2a2a2a;
+      border: 1px solid #3a3a3a;
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-size: 13px;
+      padding: 7px 10px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="text"]:focus,
+    input[type="number"]:focus { border-color: #666666; }
+    input[readonly] { color: #555555; cursor: default; }
+
+    .row { display: flex; gap: 8px; }
+    .row input { flex: 1; }
+
+    button {
+      background: #2a2a2a;
+      border: 1px solid #3a3a3a;
+      border-radius: 6px;
+      color: #cccccc;
+      font-size: 12px;
+      padding: 7px 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    button:hover { background: #333333; border-color: #4a4a4a; }
+    button:active { background: #404040; }
+
+    #btnStartStop {
+      width: 100%;
+      padding: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      background: #3d7ebf;
+      border: 1px solid #4d8ecf;
+      color: #ffffff;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-bottom: 8px;
+      transition: background 0.15s;
+    }
+    #btnStartStop:hover { background: #4d8ecf; }
+    #btnStartStop.stop { background: #bf3d3d; border-color: #cf4d4d; }
+    #btnStartStop.stop:hover { background: #cf4d4d; }
+
+    #btnScanFiles {
+      width: 100%;
+      padding: 8px;
+      font-size: 13px;
+      background: #4a7a3a;
+      border: 1px solid #5a8a4a;
+      color: #ffffff;
+    }
+    #btnScanFiles:hover { background: #5a8a4a; border-color: #6a9a5a; }
+    #btnScanFiles:disabled { background: #2a2a2a; border-color: #3a3a3a; color: #555555; cursor: default; }
+
+    .progress-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+      min-height: 20px;
+    }
+
+    .progress-label {
+      font-size: 12px;
+      color: #888888;
+      white-space: nowrap;
+      width: 80px;
+    }
+
+    .progress-bar-wrap {
+      flex: 1;
+      height: 6px;
+      background: #2a2a2a;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.2s;
+      width: 0%;
+    }
+
+    .progress-bar.scan  { background: #777777; }
+    .progress-bar.thumb { background: #999999; }
+
+    .progress-count {
+      font-size: 11px;
+      color: #666666;
+      white-space: nowrap;
+      width: 60px;
+      text-align: right;
+    }
+
+    .address-row { display: flex; gap: 8px; align-items: center; }
+    .address-row input { flex: 1; }
+    .address-label { font-size: 12px; color: #666666; white-space: nowrap; }
+
+    .toggle-row { display: flex; align-items: center; gap: 8px; }
+    .toggle-switch {
+      position: relative; width: 36px; height: 20px; flex-shrink: 0; cursor: pointer;
+    }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-track {
+      position: absolute; inset: 0; background: #333333; border-radius: 10px;
+      transition: background 0.2s;
+    }
+    .toggle-switch input:checked + .toggle-track { background: #3d7ebf; }
+    .toggle-thumb {
+      position: absolute; top: 3px; left: 3px;
+      width: 14px; height: 14px; background: #888888; border-radius: 50%;
+      transition: left 0.2s, background 0.2s;
+    }
+    .toggle-switch input:checked ~ .toggle-thumb { left: 19px; background: #ffffff; }
+    .toggle-label { font-size: 12px; color: #888888; flex: 1; }
+    .upnp-status { font-size: 11px; white-space: nowrap; }
+    .upnp-status.ok     { color: #5ab05a; }
+    .upnp-status.failed { color: #bf3d3d; }
+    .upnp-status.pending { color: #888888; }
+  </style>
+</head>
+<body>
+
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-text" id="statusText">Server Stopped</span>
+    <span class="client-count" id="clientCount"></span>
+  </div>
+
+  <div class="section">
+    <button id="btnStartStop">Start Server</button>
+    <button id="btnScanFiles">Scan Files</button>
+
+    <div class="progress-row" id="rowScan" style="display:none">
+      <span class="progress-label">Scanning</span>
+      <div class="progress-bar-wrap"><div class="progress-bar scan" id="barScan"></div></div>
+      <span class="progress-count" id="cntScan"></span>
+    </div>
+
+    <div class="progress-row" id="rowThumb" style="display:none">
+      <span class="progress-label">Thumbnails</span>
+      <div class="progress-bar-wrap"><div class="progress-bar thumb" id="barThumb"></div></div>
+      <span class="progress-count" id="cntThumb"></span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Server</div>
+    <div class="field">
+      <label>IP Address</label>
+      <input type="text" id="address" readonly />
+    </div>
+    <div class="field">
+      <label>Port</label>
+      <input type="number" id="port" min="1024" max="65535" />
+    </div>
+    <div class="field">
+      <label>UPnP</label>
+      <div class="toggle-row">
+        <label class="toggle-switch">
+          <input type="checkbox" id="chkUpnp" />
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+        <span class="toggle-label">Auto port forwarding</span>
+        <span class="upnp-status" id="upnpStatus"></span>
+      </div>
+      <div class="field" id="rowExternalIp" style="display:none; margin-top:6px; margin-bottom:0;">
+        <label>External IP</label>
+        <input type="text" id="externalIp" readonly />
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Auth</div>
+    <div class="field">
+      <label>PIN</label>
+      <div class="row">
+        <input type="text" id="pin" readonly />
+        <button id="btnGenPin">Regenerate</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Files</div>
+    <div class="field">
+      <label>File Path</label>
+      <div class="row">
+        <input type="text" id="filePath" readonly />
+        <button id="btnBrowse">Browse</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Thumbnail Size</label>
+      <input type="number" id="thumbSize" min="64" max="512" step="32" />
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

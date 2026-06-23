@@ -1,0 +1,22 @@
+{
+  "name": "removiewer2-server",
+  "version": "2.0.0",
+  "description": "RemoViewer2 Server",
+  "author": "akira",
+  "main": "src/main/index.js",
+  "scripts": {
+    "start": "node run-electron.mjs",
+    "rebuild": "electron-rebuild",
+    "build": "electron-builder"
+  },
+  "dependencies": {
+    "nat-upnp": "^1.1.1",
+    "sharp": "^0.33.5",
+    "yauzl": "^2.10.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.6.0",
+    "electron": "^34.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}

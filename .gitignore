@@ -1,0 +1,15 @@
+# Local-only secrets (never commit)
+src/main/secret.js
+
+# Dependencies / build outputs
+node_modules/
+dist/
+out/
+build/
+release/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
