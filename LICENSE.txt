@@ -1,5 +1,5 @@
 RemoViewer Server License
-Copyright (c) 2026 [당신의 이름 또는 닉네임]. All rights reserved.
+Copyright (c) 2026 nextentry. All rights reserved.
 
 --------------------------------------------------------------------------------
 [한국어]

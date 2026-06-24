@@ -194,6 +194,35 @@ ipcMain.handle('server:status', () => ({
   clientCount: tcpServer.clientCount,
 }))
 
+ipcMain.handle('thumbs:regen', async (_, thumbSize) => {
+  try {
+    config.set({ thumbSize })
+    const { loadMeta }   = require('./fileManager')
+    const { regenThumb } = require('./thumbManager')
+    const cfg   = config.get()
+    const meta  = await loadMeta(cfg.filePath)
+    const files = meta.Files || []
+    const total = files.length
+    const CONCURRENCY = 4
+    let done = 0
+
+    notify('server:thumb', { active: true, done: 0, total })
+
+    for (let i = 0; i < files.length; i += CONCURRENCY) {
+      await Promise.all(
+        files.slice(i, i + CONCURRENCY).map(async f => {
+          try { await regenThumb(cfg.filePath, f.Name, f.ThumbPageNum ?? 0, thumbSize) } catch {}
+          done++
+          notify('server:thumb', { active: true, done, total })
+        })
+      )
+    }
+
+    notify('server:thumb', { active: false, done, total })
+    return { ok: true }
+  } catch (e) { return { ok: false, error: e.message } }
+})
+
 ipcMain.handle('files:scan', async () => {
   try {
     const { scan, waitForScan, isScanning, loadMeta } = require('./fileManager')

@@ -1,6 +1,7 @@
 {
   "appId": "com.removiewer2.server",
   "productName": "RemoViewer2Server",
+  "artifactName": "${productName}-${version}-portable.${ext}",
   "directories": {
     "output": "release"
   },
@@ -14,14 +15,16 @@
     "**/node_modules/@img/**"
   ],
   "win": {
-    "target": "nsis",
+    "target": ["nsis", "zip"],
     "icon": "assets/icon.ico"
   },
+  "compression": "store",
   "nsis": {
     "oneClick": false,
     "perMachine": false,
     "installerIcon": "assets/icon.ico",
-    "uninstallerIcon": "assets/icon.ico"
+    "uninstallerIcon": "assets/icon.ico",
+    "artifactName": "${productName}-${version}-setup.exe"
   },
   "npmRebuild": true,
   "electronLanguages": ["ko", "en-US"],

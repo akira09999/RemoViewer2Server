@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('api', {
   stopServer:   ()      => ipcRenderer.invoke('server:stop'),
   getStatus:    ()      => ipcRenderer.invoke('server:status'),
   scanFiles:    ()      => ipcRenderer.invoke('files:scan'),
+  regenThumbs:  size   => ipcRenderer.invoke('thumbs:regen', size),
   onStatus:     cb      => ipcRenderer.on('server:status', (_, data) => cb(data)),
   onScan:       cb      => ipcRenderer.on('server:scan',   (_, data) => cb(data)),
   onThumb:      cb      => ipcRenderer.on('server:thumb',  (_, data) => cb(data)),

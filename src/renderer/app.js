@@ -7,7 +7,8 @@ const addressEl   = $('address')
 const portEl      = $('port')
 const pinEl       = $('pin')
 const filePathEl  = $('filePath')
-const thumbSizeEl = $('thumbSize')
+const thumbSizeGroup = $('thumbSizeGroup')
+const btnApplyThumb  = $('btnApplyThumb')
 const btnStartStop = $('btnStartStop')
 const btnGenPin    = $('btnGenPin')
 const btnBrowse    = $('btnBrowse')
@@ -24,6 +25,28 @@ const rowExternalIp = $('rowExternalIp')
 const externalIpEl  = $('externalIp')
 
 let isRunning = false
+let savedThumbSize = 256
+let selectedThumbSize = 256
+
+function setThumbSizeUI(size) {
+  selectedThumbSize = size
+  thumbSizeGroup.querySelectorAll('.seg-btn').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.size) === size)
+  })
+  btnApplyThumb.disabled = (selectedThumbSize === savedThumbSize)
+}
+
+thumbSizeGroup.addEventListener('click', e => {
+  const btn = e.target.closest('.seg-btn')
+  if (!btn) return
+  setThumbSizeUI(parseInt(btn.dataset.size))
+})
+
+btnApplyThumb.addEventListener('click', async () => {
+  btnApplyThumb.disabled = true
+  savedThumbSize = selectedThumbSize
+  await window.api.regenThumbs(selectedThumbSize)
+})
 
 function updateStatus(data) {
   isRunning = data.running
@@ -62,11 +85,6 @@ async function saveField(key, value) {
 portEl.addEventListener('change', () => {
   const v = parseInt(portEl.value)
   if (v >= 1024 && v <= 65535) saveField('port', v)
-})
-
-thumbSizeEl.addEventListener('change', () => {
-  const v = parseInt(thumbSizeEl.value)
-  if (v >= 64 && v <= 512) saveField('thumbSize', v)
 })
 
 chkUpnp.addEventListener('change', () => {
@@ -129,11 +147,12 @@ window.api.onThumb(({ active, done, total }) => {
 
 ;(async () => {
   const [cfg, s] = await Promise.all([window.api.getConfig(), window.api.getStatus()])
-  addressEl.value   = cfg.address   || ''
-  portEl.value      = cfg.port      || 26800
-  pinEl.value       = cfg.pin       || ''
-  filePathEl.value  = cfg.filePath  || ''
-  thumbSizeEl.value = cfg.thumbSize || 256
-  chkUpnp.checked   = cfg.upnp     || false
+  addressEl.value  = cfg.address  || ''
+  portEl.value     = cfg.port     || 26800
+  pinEl.value      = cfg.pin      || ''
+  filePathEl.value = cfg.filePath || ''
+  savedThumbSize   = cfg.thumbSize || 256
+  setThumbSizeUI(savedThumbSize)
+  chkUpnp.checked  = cfg.upnp    || false
   updateStatus(s)
 })()

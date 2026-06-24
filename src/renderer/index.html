@@ -191,6 +191,25 @@
     .upnp-status.ok     { color: #5ab05a; }
     .upnp-status.failed { color: #bf3d3d; }
     .upnp-status.pending { color: #888888; }
+
+    .thumb-row { display: flex; gap: 8px; align-items: center; }
+    .seg-group { display: flex; border: 1px solid #3a3a3a; border-radius: 6px; overflow: hidden; flex: 1; }
+    .seg-btn {
+      border: none; border-right: 1px solid #3a3a3a; border-radius: 0;
+      flex: 1; padding: 7px 0; font-size: 12px; color: #888888; background: #2a2a2a; cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .seg-btn:last-child { border-right: none; }
+    .seg-btn:hover { background: #333333; color: #cccccc; }
+    .seg-btn.active { background: #3d3d3d; color: #ffffff; }
+
+    #btnApplyThumb {
+      white-space: nowrap; background: #3d7ebf; border: 1px solid #4d8ecf;
+      border-radius: 6px; color: #ffffff; font-size: 12px; padding: 7px 12px; cursor: pointer;
+      transition: background 0.15s;
+    }
+    #btnApplyThumb:hover:not(:disabled) { background: #4d8ecf; }
+    #btnApplyThumb:disabled { background: #2a2a2a; border-color: #3a3a3a; color: #555555; cursor: default; }
   </style>
 </head>
 <body>
@@ -268,7 +287,14 @@
     </div>
     <div class="field">
       <label>Thumbnail Size</label>
-      <input type="number" id="thumbSize" min="64" max="512" step="32" />
+      <div class="thumb-row">
+        <div class="seg-group" id="thumbSizeGroup">
+          <button class="seg-btn" data-size="64">64</button>
+          <button class="seg-btn" data-size="128">128</button>
+          <button class="seg-btn" data-size="256">256</button>
+        </div>
+        <button id="btnApplyThumb" disabled>Apply</button>
+      </div>
     </div>
   </div>
 
