@@ -1,4 +1,4 @@
-const fs   = require('fs')
+﻿const fs   = require('fs')
 const fsp  = require('fs').promises
 const path = require('path')
 
@@ -79,18 +79,14 @@ async function loadMeta(filePath) {
 }
 
 async function saveMeta(filePath, meta) {
-  try {
-    await fsp.writeFile(path.join(filePath, META_FILE), JSON.stringify(meta), 'utf8')
-    _metaCache = meta
-    _metaPath  = filePath
-  } catch {}
+  await fsp.writeFile(path.join(filePath, META_FILE), JSON.stringify(meta), 'utf8')
+  _metaCache = meta
+  _metaPath  = filePath
 }
 
 async function countZipPages(zipPath) {
-  try {
-    const entries = await getCachedEntries(zipPath)
-    return entries.length
-  } catch { return 0 }
+  const entries = await getCachedEntries(zipPath)
+  return entries.length
 }
 
 let _scanning = false
@@ -111,20 +107,17 @@ function _notifyScanDone() {
 }
 
 async function scan(filePath, onProgress) {
-  if (_scanning) return []
-  if (!filePath) return []
-  try { await fsp.access(filePath) } catch { return [] }
+  if (_scanning) throw new Error('ScanAlreadyRunning')
+  if (!filePath) throw new Error('FilePathNotConfigured')
+  await fsp.access(filePath)
 
   _scanning = true
   try {
     const meta    = await loadMeta(filePath)
     const metaMap = Object.fromEntries((meta.Files || []).map(f => [f.Name, f]))
 
-    let names
-    try {
-      const entries = await fsp.readdir(filePath)
-      names = entries.filter(n => n.toLowerCase().endsWith('.zip'))
-    } catch { return [] }
+    const entries = await fsp.readdir(filePath)
+    const names = entries.filter(n => n.toLowerCase().endsWith('.zip'))
 
     const total      = names.length
     const result     = new Array(names.length)
@@ -138,8 +131,7 @@ async function scan(filePath, onProgress) {
         if (idx >= names.length) break
         const name     = names[idx]
         const fullPath = path.join(filePath, name)
-        let stat
-        try { stat = await fsp.stat(fullPath) } catch { result[idx] = null; done++; continue }
+        const stat = await fsp.stat(fullPath)
 
         const cached     = metaMap[name]
         let pageCount    = 0
@@ -172,7 +164,7 @@ async function scan(filePath, onProgress) {
 async function readZipPage(zipPath, pageIndex) {
   const entries = await getCachedEntries(zipPath)
   const entry   = entries[pageIndex]
-  if (!entry) throw new Error('페이지 없음')
+  if (!entry) throw new Error('PageNotFound')
   const zf   = await openZip(zipPath)
   const data = await readEntry(zf, entry)
   zf.close()

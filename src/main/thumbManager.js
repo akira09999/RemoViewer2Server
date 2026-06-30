@@ -1,4 +1,4 @@
-const fsp  = require('fs').promises
+﻿const fsp  = require('fs').promises
 const path = require('path')
 
 const THUMB_DIR = 'RemoViewerThumb'
@@ -11,7 +11,13 @@ async function ensureThumbDir(filePath) {
 }
 
 async function thumbExists(filePath, name) {
-  try { await fsp.access(thumbPath(filePath, name)); return true } catch { return false }
+  try {
+    await fsp.access(thumbPath(filePath, name))
+    return true
+  } catch (e) {
+    if (e.code === 'ENOENT') return false
+    throw e
+  }
 }
 
 async function generateThumb(filePath, fileName, pageNum, thumbSize) {

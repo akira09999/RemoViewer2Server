@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog } = require('electron')
+﻿const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog } = require('electron')
 const path = require('path')
 const config      = require('./config')
 const tcpServer   = require('./tcpServer')
@@ -41,19 +41,17 @@ function createWindow() {
 
 function buildTrayMenu() {
   return Menu.buildFromTemplate([
-    { label: '설정 열기', click: () => mainWindow?.show() },
+    { label: 'Open Settings', click: () => mainWindow?.show() },
     { type: 'separator' },
-    { label: '종료', click: () => {
+    { label: 'Exit', click: () => {
       mainWindow?.removeAllListeners('close')
-      tcpServer.stop().then(() => app.quit())
+      tcpServer.stop().then(() => app.quit()).catch(() => app.quit())
     }},
   ])
 }
 
 function createTray() {
-  let icon
-  try { icon = nativeImage.createFromPath(path.join(__dirname, '../../assets/icon.ico')) }
-  catch { icon = nativeImage.createEmpty() }
+  const icon = nativeImage.createFromPath(path.join(__dirname, '../../assets/icon.ico'))
 
   tray = new Tray(icon)
   tray.setToolTip('RemoViewer2 Server')
@@ -71,6 +69,7 @@ function notifyStatus() {
 }
 
 tcpServer.onStatus = () => notifyStatus()
+tcpServer.onLog    = (type, addr) => notify('server:log', { type, addr, time: Date.now() })
 
 async function pregenerateThumbsInBackground(cfg) {
   const { loadMeta }               = require('./fileManager')
@@ -83,21 +82,21 @@ async function pregenerateThumbsInBackground(cfg) {
 
   notify('server:thumb', { active: true, done: 0, total })
 
-  for (let i = 0; i < files.length; i += CONCURRENCY) {
-    if (!tcpServer.isRunning) break
-    await Promise.all(
-      files.slice(i, i + CONCURRENCY).map(async f => {
-        try {
+  try {
+    for (let i = 0; i < files.length; i += CONCURRENCY) {
+      if (!tcpServer.isRunning) break
+      await Promise.all(
+        files.slice(i, i + CONCURRENCY).map(async f => {
           if (!await thumbExists(cfg.filePath, f.Name))
             await generateThumb(cfg.filePath, f.Name, f.ThumbPageNum ?? 0, cfg.thumbSize)
-        } catch {}
-        done++
-        notify('server:thumb', { active: true, done, total })
-      })
-    )
+          done++
+          notify('server:thumb', { active: true, done, total })
+        })
+      )
+    }
+  } finally {
+    notify('server:thumb', { active: false, done, total })
   }
-
-  notify('server:thumb', { active: false, done, total })
 }
 
 function notify(channel, data) {
@@ -117,20 +116,25 @@ async function startUpnp(cfg) {
 }
 
 async function stopUpnp() {
-  await upnpManager.unmapPort().catch(() => {})
+  await upnpManager.unmapPort()
   upnpManager.close()
 }
 
 async function startServerWithScan(cfg) {
   const { scan } = require('./fileManager')
   if (tcpServer.isRunning) await tcpServer.stop()
+  let done = 0
+  let total = 0
   notify('server:scan', { active: true, done: 0, total: 0 })
-  const files = await scan(cfg.filePath, (done, total) => {
+  const files = await scan(cfg.filePath, (nextDone, nextTotal) => {
+    done = nextDone
+    total = nextTotal
     notify('server:scan', { active: true, done, total })
-  }).catch(() => [])
-  notify('server:scan', { active: false, done: files.length, total: files.length })
+  }).finally(() => {
+    notify('server:scan', { active: false, done, total })
+  })
   await tcpServer.start(cfg.port)
-  pregenerateThumbsInBackground(cfg)
+  pregenerateThumbsInBackground(cfg).catch(e => console.error('pregenerate thumbs failed:', e.message))
   startUpnp(cfg)
 }
 
@@ -148,7 +152,7 @@ app.whenReady().then(() => {
   setTimeout(() => {
     const cfg = config.get()
     if (cfg.filePath) {
-      startServerWithScan(cfg).catch(e => console.error('서버 시작 실패:', e.message))
+      startServerWithScan(cfg).catch(e => console.error('Server start failed:', e.message))
     }
   }, 1000)
 })
@@ -168,7 +172,7 @@ ipcMain.handle('config:genPin', () => {
 ipcMain.handle('dialog:openFolder', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openDirectory'],
-    title: '파일 경로 선택',
+    title: 'Select File Path',
   })
   return result.canceled ? null : result.filePaths[0]
 })
@@ -208,19 +212,42 @@ ipcMain.handle('thumbs:regen', async (_, thumbSize) => {
 
     notify('server:thumb', { active: true, done: 0, total })
 
-    for (let i = 0; i < files.length; i += CONCURRENCY) {
-      await Promise.all(
-        files.slice(i, i + CONCURRENCY).map(async f => {
-          try { await regenThumb(cfg.filePath, f.Name, f.ThumbPageNum ?? 0, thumbSize) } catch {}
-          done++
-          notify('server:thumb', { active: true, done, total })
-        })
-      )
+    try {
+      for (let i = 0; i < files.length; i += CONCURRENCY) {
+        await Promise.all(
+          files.slice(i, i + CONCURRENCY).map(async f => {
+            await regenThumb(cfg.filePath, f.Name, f.ThumbPageNum ?? 0, thumbSize)
+            done++
+            notify('server:thumb', { active: true, done, total })
+          })
+        )
+      }
+    } finally {
+      notify('server:thumb', { active: false, done, total })
     }
-
-    notify('server:thumb', { active: false, done, total })
     return { ok: true }
   } catch (e) { return { ok: false, error: e.message } }
+})
+
+ipcMain.handle('firewall:allow', async () => {
+  const { execFile } = require('child_process')
+  const exePath = process.execPath
+
+  const innerScript = [
+    `$ep = '${exePath.replace(/'/g, "''")}'`,
+    `Get-NetFirewallRule -DisplayName 'RemoViewer2Server' -ErrorAction SilentlyContinue | Remove-NetFirewallRule`,
+    `New-NetFirewallRule -DisplayName 'RemoViewer2Server' -Direction Inbound -Program $ep -Action Allow -Profile Any`,
+  ].join('; ')
+  const innerEncoded = Buffer.from(innerScript, 'utf16le').toString('base64')
+
+  const outerScript = `Start-Process powershell -ArgumentList '-EncodedCommand ${innerEncoded}' -Verb RunAs -Wait`
+  const outerEncoded = Buffer.from(outerScript, 'utf16le').toString('base64')
+
+  return new Promise(resolve => {
+    execFile('powershell', ['-NonInteractive', '-EncodedCommand', outerEncoded], { timeout: 30000 }, err => {
+      resolve(err ? { ok: false } : { ok: true })
+    })
+  })
 })
 
 ipcMain.handle('files:scan', async () => {
@@ -234,11 +261,16 @@ ipcMain.handle('files:scan', async () => {
     }
     const wasRunning = tcpServer.isRunning
     if (wasRunning) await tcpServer.stop()
+    let done = 0
+    let total = 0
     notify('server:scan', { active: true, done: 0, total: 0 })
-    const files = await scan(cfg.filePath, (done, total) => {
+    const files = await scan(cfg.filePath, (nextDone, nextTotal) => {
+      done = nextDone
+      total = nextTotal
       notify('server:scan', { active: true, done, total })
+    }).finally(() => {
+      notify('server:scan', { active: false, done, total })
     })
-    notify('server:scan', { active: false, done: files.length, total: files.length })
     if (wasRunning) { await tcpServer.start(cfg.port); pregenerateThumbsInBackground(cfg) }
     return { ok: true, count: files.length }
   } catch (e) { return { ok: false, error: e.message } }

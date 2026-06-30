@@ -1,4 +1,4 @@
-const path   = require('path')
+﻿const path   = require('path')
 const crypto = require('crypto')
 const config      = require('./config')
 const { scan, readZipPage, readZipPages, loadMeta, saveMeta, getCachedFiles } = require('./fileManager')
@@ -7,6 +7,14 @@ const { getThumb, regenThumb } = require('./thumbManager')
 const VERSION        = '101'
 const THUMB_PARALLEL = 8
 const PAGE_PARALLEL  = 8
+
+function validateFile(base, name) {
+  if (!name || typeof name !== 'string') throw new Error('Invalid file')
+  const resolved = path.resolve(base, name)
+  const safeBase = path.resolve(base) + path.sep
+  if (!resolved.startsWith(safeBase)) throw new Error('Invalid file path')
+  return resolved
+}
 
 const sessions = new Map()
 
@@ -23,19 +31,15 @@ async function processImage(data, fileName, reqW, reqH, quality) {
   const ext    = path.extname(fileName).toLowerCase()
   const isJpeg = ext === '.jpg' || ext === '.jpeg'
 
-  try {
-    const sharp = getSharp()
-    if (reqW > 0 && reqH > 0) {
-      const meta = await sharp(data).metadata()
-      if ((meta.width || 0) <= reqW && (meta.height || 0) <= reqH) {
-        return isJpeg ? data : sharp(data).jpeg({ quality }).toBuffer()
-      }
-      return sharp(data).resize(reqW, reqH, { fit: 'inside' }).jpeg({ quality }).toBuffer()
+  const sharp = getSharp()
+  if (reqW > 0 && reqH > 0) {
+    const meta = await sharp(data).metadata()
+    if ((meta.width || 0) <= reqW && (meta.height || 0) <= reqH) {
+      return isJpeg ? data : sharp(data).jpeg({ quality }).toBuffer()
     }
-    return isJpeg ? data : sharp(data).jpeg({ quality }).toBuffer()
-  } catch {
-    return data
+    return sharp(data).resize(reqW, reqH, { fit: 'inside' }).jpeg({ quality }).toBuffer()
   }
+  return isJpeg ? data : sharp(data).jpeg({ quality }).toBuffer()
 }
 
 async function concurrencyPool(items, limit, fn) {
@@ -80,19 +84,18 @@ async function handle(json) {
       const metaMap = Object.fromEntries((meta.Files || []).map(f => [f.Name, f]))
 
       const thumbs = await concurrencyPool(files, THUMB_PARALLEL, async (fileName) => {
-        try {
-          const pageNum = metaMap[fileName]?.ThumbPageNum ?? 0
-          const data    = await getThumb(cfg.filePath, fileName, pageNum, cfg.thumbSize)
-          return { File: fileName, Image: data.toString('base64') }
-        } catch { return null }
+        const pageNum = metaMap[fileName]?.ThumbPageNum ?? 0
+        const data    = await getThumb(cfg.filePath, fileName, pageNum, cfg.thumbSize)
+        return { File: fileName, Image: data.toString('base64') }
       })
 
-      return { ResCode: 0, Thumbs: thumbs.filter(Boolean) }
+      return { ResCode: 0, Thumbs: thumbs }
     }
 
     case 'GetPage': {
       if (!checkSession(json.SessionID)) return { ResCode: 2, ResMsg: 'Error' }
-      const zipPath = path.join(cfg.filePath, json.File)
+      if (!Number.isInteger(json.Page) || json.Page < 0) return { ResCode: 3, ResMsg: 'InvalidPage' }
+      const zipPath = validateFile(cfg.filePath, json.File)
       const { data, fileName } = await readZipPage(zipPath, json.Page)
       const outData = await processImage(data, fileName, json.Width || 0, json.Height || 0, 85)
       return { ResCode: 0, Name: path.basename(fileName), Size: outData.length, Image: outData.toString('base64') }
@@ -100,7 +103,7 @@ async function handle(json) {
 
     case 'GetPages': {
       if (!checkSession(json.SessionID)) return { ResCode: 2, ResMsg: 'Error' }
-      const pages = json.Pages || []
+      const pages = (json.Pages || []).filter(p => Number.isInteger(p.Page) && p.Page >= 0)
       const reqW  = json.Width  || 0
       const reqH  = json.Height || 0
 
@@ -111,27 +114,24 @@ async function handle(json) {
       }
 
       const allRead = await concurrencyPool([...byFile.entries()], PAGE_PARALLEL, async ([file, indices]) => {
-        try {
-          const zipPath = path.join(cfg.filePath, file)
-          return await readZipPages(zipPath, indices).then(results =>
-            results.map(r => ({ file, ...r }))
-          )
-        } catch { return [] }
+        const zipPath = validateFile(cfg.filePath, file)
+        return await readZipPages(zipPath, indices).then(results =>
+          results.map(r => ({ file, ...r }))
+        )
       })
 
       const flat = allRead.flat()
       const processed = await concurrencyPool(flat, PAGE_PARALLEL, async ({ file, pageIndex, data, fileName }) => {
-        try {
-          const outData = await processImage(data, fileName, reqW, reqH, 85)
-          return { File: file, Page: pageIndex, Image: outData.toString('base64') }
-        } catch { return null }
+        const outData = await processImage(data, fileName, reqW, reqH, 85)
+        return { File: file, Page: pageIndex, Image: outData.toString('base64') }
       })
 
-      return { ResCode: 0, Pages: processed.filter(Boolean) }
+      return { ResCode: 0, Pages: processed }
     }
 
     case 'RegenThumb': {
       if (!checkSession(json.SessionID)) return { ResCode: 2, ResMsg: 'Error' }
+      validateFile(cfg.filePath, json.File)
       const pageNum = json.Page ?? 0
       const meta    = await loadMeta(cfg.filePath)
       const fileInfo = (meta.Files || []).find(f => f.Name === json.File)

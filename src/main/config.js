@@ -1,4 +1,4 @@
-const path = require('path')
+﻿const path = require('path')
 const fs   = require('fs')
 const os   = require('os')
 const { app } = require('electron')
@@ -18,15 +18,12 @@ const DEFAULTS = {
 let _config = null
 
 function load() {
-  try {
-    return { ...DEFAULTS, ...JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) }
-  } catch {
-    return { ...DEFAULTS }
-  }
+  if (!fs.existsSync(CONFIG_FILE)) return { ...DEFAULTS }
+  return { ...DEFAULTS, ...JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) }
 }
 
 function save(cfg) {
-  try { fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf8') } catch {}
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf8')
 }
 
 function generatePin() {

@@ -1,4 +1,4 @@
-const net    = require('net')
+﻿const net    = require('net')
 const crypto = require('crypto')
 const handler = require('./handler')
 const { AES_KEY } = require('./secret')
@@ -63,16 +63,18 @@ function buildPacket(pid, type, code, value, rawData) {
 
 class ClientSession {
   constructor(socket, tcpId) {
-    this.socket     = socket
-    this.tcpId      = tcpId
-    this._recvChunks = []
-    this._recvLen    = 0
+    this.socket       = socket
+    this.tcpId        = tcpId
+    this._recvChunks  = []
+    this._recvLen     = 0
+    this._recvTimeout = null
     this._startHeartbeat()
   }
 
   _startHeartbeat() {
     this._hbTimer = setInterval(() => {
       if (!this.socket.writable) return
+      clearTimeout(this._hbTimeout)
       this.socket.write(buildPacket(0, PType.Notify, PCode.HeartBeat, 0, null))
       this._hbTimeout = setTimeout(() => this.socket.destroy(), 30000)
     }, 10000)
@@ -81,9 +83,12 @@ class ClientSession {
   destroy() {
     clearInterval(this._hbTimer)
     clearTimeout(this._hbTimeout)
+    clearTimeout(this._recvTimeout)
   }
 
   onData(data) {
+    clearTimeout(this._recvTimeout)
+    this._recvTimeout = null
     this._recvChunks.push(data)
     this._recvLen += data.length
     this._process()
@@ -105,6 +110,7 @@ class ClientSession {
       const total = HEADER_SIZE + hdr.dataSize
       if (this._recvLen < total) {
         this._recvChunks = [recvBuf]
+        this._recvTimeout = setTimeout(() => this.socket.destroy(), 30000)
         break
       }
 
@@ -140,11 +146,9 @@ class ClientSession {
       const res    = buildPacket(hdr.pid, PType.Response, PCode.Request, 0, Buffer.from(JSON.stringify(result), 'utf8'))
       if (this.socket.writable) this.socket.write(res)
     } catch (e) {
-      try {
-        const res = buildPacket(hdr.pid, PType.Response, PCode.Request, 0,
-          Buffer.from(JSON.stringify({ ResCode: 2, ResMsg: e.message }), 'utf8'))
-        if (this.socket.writable) this.socket.write(res)
-      } catch {}
+      const res = buildPacket(hdr.pid, PType.Response, PCode.Request, 0,
+        Buffer.from(JSON.stringify({ ResCode: 2, ResMsg: e.message }), 'utf8'))
+      if (this.socket.writable) this.socket.write(res)
     }
   }
 }
@@ -154,6 +158,7 @@ class TcpServer {
     this._server  = null
     this._clients = new Set()
     this.onStatus = null
+    this.onLog    = null
   }
 
   start(port) {
@@ -162,8 +167,14 @@ class TcpServer {
       this._server = net.createServer(socket => {
         const session = new ClientSession(socket, nextTcpSessionId++)
         this._clients.add(session)
+        this.onLog?.('connect', socket.remoteAddress)
         socket.on('data',  d  => session.onData(d))
-        socket.on('close', () => { session.destroy(); this._clients.delete(session) })
+        socket.on('close', () => {
+          const addr = socket.remoteAddress
+          session.destroy()
+          this._clients.delete(session)
+          this.onLog?.('disconnect', addr)
+        })
         socket.on('error', () => { session.destroy(); this._clients.delete(session) })
       })
       this._server.on('error', e => { if (!this._server.listening) reject(e) })
